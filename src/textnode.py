@@ -9,6 +9,14 @@ class TextType(Enum):
     CODE = "code"
     LINK = "link"
     IMAGE = "image"
+
+class BlockType(Enum):
+    PARAGRAPH = "paragraph",
+    HEADING = "heading",
+    CODE = "code",
+    QUOTE = "quote",
+    UNORDERED_LIST = "unordered_list",
+    ORDERED_LIST = "ordered_list"
     
 class TextNode:
     def __init__(self, text, text_type, url=None):
@@ -68,7 +76,6 @@ def extract_markdown_images(text):
     matches = re.findall(r"!\[([^\[\]]*)\]\(([^\(\)]*)\)", text)
     return matches
 
-
 def extract_markdown_links(text):
     matches = re.findall(r"(?<!!)\[([^\[\]]*)\]\(([^\(\)]*)\)", text)
     return matches
@@ -125,3 +132,48 @@ def split_nodes_link(old_nodes):
         if original_text != "":
             new_nodes.append(TextNode(original_text, TextType.TEXT))
     return new_nodes
+
+def text_to_textnodes(text):
+    orig_node = [TextNode(text, TextType.TEXT)]
+    bold = split_nodes_delimiter(orig_node, '**', TextType.BOLD)
+    italic = split_nodes_delimiter(bold, '_', TextType.ITALIC)
+    code = split_nodes_delimiter(italic, '`', TextType.CODE)
+    image = split_nodes_image(code)
+    link = split_nodes_link(image)
+    return link
+
+def markdown_to_blocks(markdown):
+    blocks = markdown.split("\n\n")
+    filtered_blocks = []
+    for block in blocks:
+        if block == "":
+            continue
+        block = block.strip()
+        filtered_blocks.append(block)
+    return filtered_blocks
+    
+def block_to_block_type(block):
+    lines = block.split("\n")
+
+    if block.startswith(("# ",'## ', '### ', '#### ', '##### ', '###### ')):
+        return BlockType.HEADING
+    if len(lines) > 1 and lines[0].startswith("```") and lines[-1].startswith("```"):
+        return BlockType.CODE
+    if block.startswith('>'):
+        for line in lines:
+            if not line.startswith(">"):
+                return BlockType.PARAGRAPH
+        return BlockType.QUOTE
+    if block.startswith('- '):
+        for line in lines:
+            if not line.startswith("- "):
+                return BlockType.PARAGRAPH
+        return BlockType.UNORDERED_LIST
+    if block.startswith('1. '):
+        i = 1
+        for line in lines:
+            if not line.startswith(f"{i}. "):
+                return BlockType.PARAGRAPH
+            i+=1
+        return BlockType.ORDERED_LIST
+    return BlockType.PARAGRAPH        
